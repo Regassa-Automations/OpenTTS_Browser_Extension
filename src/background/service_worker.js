@@ -378,10 +378,10 @@ async function startSessionFromContent(payload, senderTabId) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
 
-  (async () => {
-    const tabId = sender?.tab?.id;
-    const session = getSessionForMessage(message, sender);
+  const tabId = sender?.tab?.id;
+  const session = getSessionForMessage(message, sender);
 
+  void (async () => {
     switch (message.type) {
       case MESSAGE_TYPES.CONTENT_START_SESSION:
         if (!Number.isInteger(tabId)) {
@@ -471,10 +471,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
     }
 
-    sendSafeResponse(sendResponse, { ok: true });
   })().catch((error) => {
-    sendSafeResponse(sendResponse, { ok: false, message: error instanceof Error ? error.message : String(error) });
+    if (message.type === MESSAGE_TYPES.CONTENT_START_SESSION || message.type === MESSAGE_TYPES.CONTENT_HUD_ACTION) {
+      const targetTabId = Number.isInteger(tabId) ? tabId : session?.tabId;
+      if (Number.isInteger(targetTabId)) {
+        void chrome.tabs.sendMessage(targetTabId, {
+          type: MESSAGE_TYPES.BG_HUD_ERROR,
+          payload: {
+            errorCode: ERROR_CODE.UPSTREAM_ERROR,
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }).catch(() => undefined);
+      }
+    }
   });
 
-  return true;
+  sendSafeResponse(sendResponse, { ok: true });
+  return false;
 });
