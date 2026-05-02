@@ -13,7 +13,7 @@ function createSessionId(tabId) {
 }
 
 function buildCacheKey({ sessionId, paragraphId, model, voice }) {
-  return `${sessionId}::${paragraphId}::${model}::${voice}`;
+  return `${sessionId}:${paragraphId}:${voice}:${model}`;
 }
 
 
@@ -71,12 +71,51 @@ function evaluatePrefetchGate(session, progressMeta = {}) {
 
   const progress = progressMeta.duration > 0 ? (progressMeta.currentTime / progressMeta.duration) : 0;
   const listenMs = Math.max(0, Date.now() - state.startedAtMs);
-  if (progress >= state.progressThreshold && listenMs >= state.minListenMs) {
+  const elapsedMs = Math.max(0, Date.now() - state.playingSinceMs);
+  const isPlaying = session.status === SESSION_STATUS.PLAYING;
+  if (progress >= state.progressThreshold || listenMs >= state.minListenMs || (isPlaying && elapsedMs >= state.minDelayMs)) {
     state.didPrefetch = true;
     prefetchStateBySession.set(session.sessionId, state);
     return true;
   }
   return false;
+}
+
+function shouldPrefetchDepthTwo(session, progressMeta = {}) {
+  const state = prefetchStateBySession.get(session.sessionId);
+  if (!state || state.didPrefetchDepth2) return false;
+
+  const progress = progressMeta.duration > 0 ? (progressMeta.currentTime / progressMeta.duration) : 0;
+  const listenMs = Math.max(0, Date.now() - state.startedAtMs);
+  const elapsedMs = Math.max(0, Date.now() - state.playingSinceMs);
+  const isPlaying = session.status === SESSION_STATUS.PLAYING;
+
+  if (progress >= 0.8 || listenMs >= (state.minListenMs * 2) || (isPlaying && elapsedMs >= (state.minDelayMs * 2))) {
+    state.didPrefetchDepth2 = true;
+    prefetchStateBySession.set(session.sessionId, state);
+    return true;
+  }
+  return false;
+}
+
+async function maybeEmitBudgetWarning(session, usage, settings) {
+  const monthlyBudget = Number(settings.monthlyBudgetUsd) || 0;
+  if (monthlyBudget <= 0) return;
+
+  const ratio = usage.estimatedUsd / monthlyBudget;
+  const crossed = (session.warnedThresholds || []).filter((t) => Number.isFinite(t));
+  const nextThreshold = settings.warnThresholds.find((threshold) => ratio >= threshold && !crossed.includes(threshold));
+  if (nextThreshold == null) return;
+
+  const updatedWarned = [...crossed, nextThreshold];
+  sessionsByTab.set(session.tabId, { ...session, warnedThresholds: updatedWarned });
+  await chrome.tabs.sendMessage(session.tabId, {
+    type: MESSAGE_TYPES.BG_HUD_ERROR,
+    payload: {
+      errorCode: ERROR_CODE.QUOTA_ERROR,
+      message: `Monthly budget warning: ${Math.round(nextThreshold * 100)}% reached.`,
+    },
+  }).catch(() => undefined);
 }
 
 async function requestTts({ session, index }) {
@@ -96,7 +135,9 @@ async function requestTts({ session, index }) {
       format: 'mp3',
     });
     cacheByKey.set(key, result);
-    await incrementUsage({ charCount: result.charCount, estimatedUsd: result.estimatedUsd });
+    const usage = await incrementUsage({ charCount: result.charCount, estimatedUsd: result.estimatedUsd });
+    const settings = await getSettings();
+    await maybeEmitBudgetWarning(session, usage, settings);
     return result;
   })();
 
@@ -133,9 +174,12 @@ async function playSessionIndex(session, index, opts = {}) {
     if (!opts.isPrefetch) {
       prefetchStateBySession.set(next.sessionId, {
         startedAtMs: Date.now(),
+        playingSinceMs: Date.now(),
         minListenMs: next.prefetchMinListenMs,
+        minDelayMs: next.prefetchMinDelayMs,
         progressThreshold: next.prefetchProgressThreshold,
         didPrefetch: false,
+        didPrefetchDepth2: false,
       });
     }
   } catch (error) {
@@ -222,8 +266,10 @@ async function startSessionFromContent(payload, senderTabId) {
     voice: settings.voice,
     prefetchMinListenMs: settings.prefetchMinListenMs,
     prefetchProgressThreshold: settings.prefetchProgressThreshold,
+    prefetchMinDelayMs: settings.prefetchMinDelayMs,
     status: SESSION_STATUS.LOADING,
     reason: null,
+    warnedThresholds: [],
   };
 
   sessionsByTab.set(senderTabId, session);
@@ -280,6 +326,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await handleAudioTime(session, message.payload);
           if (evaluatePrefetchGate(session, message.payload)) {
             void requestTts({ session, index: session.activeIndex + 1 }).catch(() => undefined);
+          }
+          if (shouldPrefetchDepthTwo(session, message.payload)) {
+            void requestTts({ session, index: session.activeIndex + 2 }).catch(() => undefined);
           }
         }
         break;
