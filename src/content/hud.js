@@ -1,4 +1,5 @@
 import { HUD_ACTION, SESSION_STATUS } from '../shared/message_types.js';
+import { createAutoScroller } from './auto_scroll.js';
 
 const HIGHLIGHT_ATTR = 'data-tts-active';
 
@@ -24,6 +25,7 @@ export function createHudController({ onAction = () => {} } = {}) {
   let playPauseAction = HUD_ACTION.PAUSE;
   let visible = false;
   let activeNode = null;
+  const autoScroller = createAutoScroller();
 
   function ensureMounted() {
     if (root) return;
@@ -107,7 +109,7 @@ export function createHudController({ onAction = () => {} } = {}) {
     activeNode.style.outline = '2px solid #60a5fa';
     activeNode.style.outlineOffset = '3px';
     if (autoScrollEnabled) {
-      activeNode.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      autoScroller.scrollNodeIntoView(activeNode);
     }
   }
 
