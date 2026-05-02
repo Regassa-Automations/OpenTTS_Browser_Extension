@@ -77,6 +77,8 @@ export function getCurrentMonthKey(nowMs = Date.now()) {
   return `${year}-${month}`;
 }
 
+
+let usageBucketMutationQueue = Promise.resolve();
 function createEmptyUsageBucket(monthKey) {
   return {
     monthKey,
@@ -106,24 +108,30 @@ export async function incrementUsage({ charCount = 0, estimatedUsd = 0 } = {}) {
   const safeCharCount = Number.isFinite(charCount) ? Math.max(0, Math.floor(charCount)) : 0;
   const safeEstimatedUsd = Number.isFinite(estimatedUsd) ? Math.max(0, estimatedUsd) : 0;
 
-  const monthKey = getCurrentMonthKey();
-  const result = await chrome.storage.local.get(STORAGE_KEYS.USAGE_BUCKET);
-  const allBuckets = (result[STORAGE_KEYS.USAGE_BUCKET] && typeof result[STORAGE_KEYS.USAGE_BUCKET] === 'object')
-    ? result[STORAGE_KEYS.USAGE_BUCKET]
-    : {};
+  const runIncrement = async () => {
+    const monthKey = getCurrentMonthKey();
+    const result = await chrome.storage.local.get(STORAGE_KEYS.USAGE_BUCKET);
+    const allBuckets = (result[STORAGE_KEYS.USAGE_BUCKET] && typeof result[STORAGE_KEYS.USAGE_BUCKET] === 'object')
+      ? result[STORAGE_KEYS.USAGE_BUCKET]
+      : {};
 
-  const current = allBuckets[monthKey] || createEmptyUsageBucket(monthKey);
-  const next = {
-    monthKey,
-    characters: (Number.isFinite(current.characters) ? current.characters : 0) + safeCharCount,
-    estimatedUsd: (Number.isFinite(current.estimatedUsd) ? current.estimatedUsd : 0) + safeEstimatedUsd,
-    updatedAt: Date.now(),
+    const current = allBuckets[monthKey] || createEmptyUsageBucket(monthKey);
+    const next = {
+      monthKey,
+      characters: (Number.isFinite(current.characters) ? current.characters : 0) + safeCharCount,
+      estimatedUsd: (Number.isFinite(current.estimatedUsd) ? current.estimatedUsd : 0) + safeEstimatedUsd,
+      updatedAt: Date.now(),
+    };
+
+    allBuckets[monthKey] = next;
+    await chrome.storage.local.set({ [STORAGE_KEYS.USAGE_BUCKET]: allBuckets });
+
+    return next;
   };
 
-  allBuckets[monthKey] = next;
-  await chrome.storage.local.set({ [STORAGE_KEYS.USAGE_BUCKET]: allBuckets });
-
-  return next;
+  const queuedIncrement = usageBucketMutationQueue.then(runIncrement, runIncrement);
+  usageBucketMutationQueue = queuedIncrement.then(() => undefined, () => undefined);
+  return queuedIncrement;
 }
 
 export async function resetUsage(monthKey = getCurrentMonthKey()) {
