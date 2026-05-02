@@ -1,5 +1,5 @@
 const OPENROUTER_TTS_ENDPOINT = 'https://openrouter.ai/api/v1/tts';
-const OPENROUTER_TTS_MODEL = 'openai/gpt-4o-mini-tts-2025-12-15';
+const OPENROUTER_TTS_MODEL = 'openai/gpt-4o-mini-tts';
 
 const ALLOWED_VOICES = Object.freeze([
   'alloy',
