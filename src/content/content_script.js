@@ -18,7 +18,11 @@ function buildQueueFrom(ttsId) {
 }
 
 function sendMessage(type, payload) {
-  return chrome.runtime.sendMessage({ type, payload }).catch(() => undefined);
+  try {
+    return chrome.runtime.sendMessage({ type, payload }).catch(() => undefined);
+  } catch (_error) {
+    return Promise.resolve(undefined);
+  }
 }
 
 async function bootstrap() {
