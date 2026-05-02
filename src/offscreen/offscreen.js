@@ -45,7 +45,7 @@ function toPlaybackErrorCode(error) {
   }
 }
 
-async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
+async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 0 }) {
   if (!sessionId || typeof audioDataUrl !== 'string' || audioDataUrl.length === 0) {
     throw new Error('OFFSCREEN_PLAY requires sessionId and audioDataUrl.');
   }
@@ -63,7 +63,8 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
       audio.src = audioDataUrl;
       lastSrc = audioDataUrl;
     }
-    audio.currentTime = 0;
+    const parsedStart = Number(startSeconds);
+    audio.currentTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : 0;
     emitState('loading');
     await audio.play();
     emitState('playing');
