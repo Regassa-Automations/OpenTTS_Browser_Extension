@@ -24,7 +24,7 @@ async function ensureOffscreenDocument() {
   if (existing.length > 0) return;
   if (!_offscreenCreating) {
     _offscreenCreating = chrome.offscreen.createDocument({
-      url: chrome.runtime.getURL('src/offscreen/offscreen.html'),
+      url: 'src/offscreen/offscreen.html',
       reasons: ['AUDIO_PLAYBACK'],
       justification: 'Audio playback for TTS',
     }).finally(() => { _offscreenCreating = null; });

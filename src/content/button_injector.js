@@ -30,7 +30,6 @@ export function createButtonInjector({
   function makeButton(ttsId, node) {
     const button = document.createElement('span');
     button.setAttribute(BUTTON_ATTR, 'play');
-    button.title = 'Play paragraph';
 
     const shadow = button.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
