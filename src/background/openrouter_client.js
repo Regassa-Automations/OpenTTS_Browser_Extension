@@ -42,6 +42,12 @@ function assertNonEmptyString(value, fieldName) {
   }
 }
 
+function assertApiKey(apiKey) {
+  if (typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+    throw toError(ERROR_CODE.AUTH_ERROR, 'OpenRouter API key is missing. Set your API key in extension settings.');
+  }
+}
+
 function encodeDataUrl(bytes, mimeType) {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 1) {
@@ -180,7 +186,7 @@ export function estimateCost({ charCount, model }) {
  */
 export async function fetchTtsAudio({ apiKey, text, voice, model, format = 'mp3', signal } = {}) {
   try {
-    assertNonEmptyString(apiKey, 'apiKey');
+    assertApiKey(apiKey);
     const { endpoint, body } = buildTtsRequest({ text, voice, model, format });
 
     const response = await fetch(endpoint, {

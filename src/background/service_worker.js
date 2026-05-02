@@ -253,13 +253,21 @@ async function playSessionIndex(session, index, opts = {}) {
       prefetchStateBySession.set(next.sessionId, ensurePrefetchState(next));
     }
   } catch (error) {
-    const code = error?.code && ERROR_CODE[error.code] ? error.code : ERROR_CODE.UPSTREAM_ERROR;
+    const code = isKnownErrorCode(error?.code) ? error.code : ERROR_CODE.UPSTREAM_ERROR;
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await broadcastSessionUpdate(next, {
       status: SESSION_STATUS.ERROR,
       reason: SESSION_REASON.ERROR,
       errorCode: code,
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorMessage,
     });
+    await chrome.tabs.sendMessage(next.tabId, {
+      type: MESSAGE_TYPES.BG_HUD_ERROR,
+      payload: {
+        errorCode: code,
+        message: errorMessage,
+      },
+    }).catch(() => undefined);
   }
 }
 
