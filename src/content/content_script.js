@@ -23,7 +23,9 @@ function sendMessage(type, payload) {
 
 async function bootstrap() {
   const settings = await getSettings().catch(() => ({}));
-  autoScrollEnabled = Boolean(settings?.autoScroll);
+  autoScrollEnabled = settings?.autoScrollEnabled !== undefined
+    ? Boolean(settings.autoScrollEnabled)
+    : Boolean(settings?.autoScroll);
 
   const hud = createHudController({
     onAction: ({ action, deltaSeconds }) => {
