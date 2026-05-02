@@ -30,7 +30,6 @@ export function createButtonInjector({
   function makeButton(ttsId, node) {
     const button = document.createElement('span');
     button.setAttribute(BUTTON_ATTR, 'play');
-    button.setAttribute('aria-label', 'Play text to speech for this paragraph');
     button.title = 'Play paragraph';
 
     const shadow = button.attachShadow({ mode: 'open' });
