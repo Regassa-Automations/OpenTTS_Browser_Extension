@@ -76,7 +76,8 @@ export function createButtonInjector({
     if (existing) return;
 
     const button = makeButton(node.dataset.ttsId, node);
-    node.prepend(button);
+    // Append control to reduce disruption to the start of readable text.
+    node.append(button);
   }
 
   function injectNow() {
@@ -89,9 +90,32 @@ export function createButtonInjector({
     debounceTimer = window.setTimeout(injectNow, debounceMs);
   }
 
+
+
+  function shouldProcessMutations(mutations) {
+    return mutations.some((mutation) => {
+      if (mutation.type === 'characterData') {
+        const parent = mutation.target?.parentElement;
+        return !(parent && parent.closest(`[${BUTTON_ATTR}]`));
+      }
+
+      const touchedNodes = [
+        ...Array.from(mutation.addedNodes || []),
+        ...Array.from(mutation.removedNodes || []),
+      ];
+
+      return touchedNodes.some((n) => {
+        if (!(n instanceof Element)) return false;
+        if (n.hasAttribute?.(BUTTON_ATTR) || n.closest?.(`[${BUTTON_ATTR}]`)) return false;
+        return true;
+      });
+    });
+  }
+
   function start() {
     injectNow();
-    observer = new MutationObserver(() => {
+    observer = new MutationObserver((mutations) => {
+      if (!shouldProcessMutations(mutations)) return;
       scheduleInject();
     });
     observer.observe(root.body || root, {

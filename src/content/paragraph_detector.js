@@ -62,7 +62,17 @@ export function detectReadableNodes({ root = document, settings = {} } = {}) {
     return text.length >= minChars;
   });
 
-  return dedupeLeafMost(readable);
+  const leafMost = dedupeLeafMost(readable);
+  // Ensure deterministic DOM-order output for downstream queue payloads.
+  leafMost.sort((a, b) => {
+    if (a === b) return 0;
+    const pos = a.compareDocumentPosition(b);
+    if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return 0;
+  });
+
+  return leafMost;
 }
 
 export function buildReadableParagraphRecords({ root = document, settings = {} } = {}) {
