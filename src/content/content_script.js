@@ -1,6 +1,6 @@
 import { createButtonInjector } from './button_injector.js';
 import { createHudController } from './hud.js';
-import { HUD_ACTION, MESSAGE_TYPES } from '../shared/message_types.js';
+import { HUD_ACTION, MESSAGE_TYPES, SESSION_STATUS } from '../shared/message_types.js';
 import { getSettings } from '../shared/storage.js';
 
 let queueSnapshot = [];
@@ -48,6 +48,7 @@ async function bootstrap() {
 
       const payload = buildQueueFrom(ttsId);
       if (!payload) return;
+      hud.onSessionUpdate({ status: SESSION_STATUS.LOADING, currentTime: 0, duration: 0 }, 'Starting playback…');
       sendMessage(MESSAGE_TYPES.CONTENT_START_SESSION, payload);
     },
   });
@@ -63,12 +64,12 @@ async function bootstrap() {
       const payload = message.payload || {};
       const activeId = payload.paragraphId;
       const node = activeId ? nodeById.get(activeId) : null;
-      const snippet = activeId && payload.status !== 'stopped'
+      const snippet = activeId && payload.status !== SESSION_STATUS.STOPPED
         ? (queueSnapshot.find((item) => item.ttsId === activeId)?.text || '').slice(0, 180)
         : '';
 
       hud.onSessionUpdate(payload, snippet);
-      if (payload.status === 'stopped') {
+      if (payload.status === SESSION_STATUS.STOPPED) {
         hud.clearHighlight();
       } else {
         hud.setActiveNode(node, autoScrollEnabled);

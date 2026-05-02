@@ -2,11 +2,17 @@ import { HUD_ACTION, SESSION_STATUS } from '../shared/message_types.js';
 
 const HIGHLIGHT_ATTR = 'data-tts-active';
 
-function createIcon(label) {
-  const span = document.createElement('span');
-  span.setAttribute('aria-hidden', 'true');
-  span.textContent = label;
-  return span;
+function createIcon(pathD) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', pathD);
+  path.setAttribute('fill', 'currentColor');
+  svg.append(path);
+  return svg;
 }
 
 export function createHudController({ onAction = () => {} } = {}) {
@@ -15,6 +21,7 @@ export function createHudController({ onAction = () => {} } = {}) {
   let progressEl;
   let snippetEl;
   let playPauseButton;
+  let playPauseAction = HUD_ACTION.PAUSE;
   let visible = false;
   let activeNode = null;
 
@@ -40,27 +47,27 @@ export function createHudController({ onAction = () => {} } = {}) {
     const controls = document.createElement('div');
     controls.style.cssText = 'display:flex;gap:8px;align-items:center;margin:8px 0;';
 
-    function mkBtn(label, title, cb) {
+    function mkBtn(pathD, title, cb) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.title = title;
       btn.setAttribute('aria-label', title);
       btn.style.cssText = 'border:1px solid rgba(255,255,255,0.25);background:#1f2937;color:#fff;border-radius:8px;padding:6px 8px;cursor:pointer;';
-      btn.append(createIcon(label));
+      btn.append(createIcon(pathD));
       btn.addEventListener('click', cb);
       return btn;
     }
 
     controls.append(
-      mkBtn('⏮', 'Previous paragraph', () => onAction({ action: HUD_ACTION.PREV })),
-      mkBtn('↺15', 'Rewind 15 seconds', () => onAction({ action: HUD_ACTION.SEEK_REL, deltaSeconds: -15 })),
+      mkBtn('M11 18V6L2.5 12 11 18zm1-6 8.5 6V6L12 12z', 'Previous paragraph', () => onAction({ action: HUD_ACTION.PREV })),
+      mkBtn('M12 6V3L8 7l4 4V8c2.8 0 5 2.2 5 5 0 .9-.2 1.8-.7 2.5l1.5 1.1c.8-1.1 1.2-2.3 1.2-3.6 0-3.9-3.1-7-7-7zM5.2 13c0-.9.2-1.8.7-2.5l-1.5-1.1C3.6 10.5 3.2 11.7 3.2 13c0 3.9 3.1 7 7 7v3l4-4-4-4v3c-2.8 0-5-2.2-5-5z', 'Rewind 15 seconds', () => onAction({ action: HUD_ACTION.SEEK_REL, deltaSeconds: -15 })),
     );
-    playPauseButton = mkBtn('⏸', 'Pause or resume', () => onAction({ action: HUD_ACTION.PAUSE }));
+    playPauseButton = mkBtn('M6 4h4v16H6V4zm8 0h4v16h-4V4z', 'Pause or resume', () => onAction({ action: playPauseAction }));
     controls.append(playPauseButton);
     controls.append(
-      mkBtn('15↻', 'Forward 15 seconds', () => onAction({ action: HUD_ACTION.SEEK_REL, deltaSeconds: 15 })),
-      mkBtn('⏭', 'Next paragraph', () => onAction({ action: HUD_ACTION.NEXT })),
-      mkBtn('✕', 'Stop', () => onAction({ action: HUD_ACTION.STOP })),
+      mkBtn('M12 6V3l4 4-4 4V8c-2.8 0-5 2.2-5 5 0 .9.2 1.8.7 2.5l-1.5 1.1c-.8-1.1-1.2-2.3-1.2-3.6 0-3.9 3.1-7 7-7zM18.8 13c0-.9-.2-1.8-.7-2.5l1.5-1.1c.8 1.1 1.2 2.3 1.2 3.6 0 3.9-3.1 7-7 7v3l-4-4 4-4v3c2.8 0 5-2.2 5-5z', 'Forward 15 seconds', () => onAction({ action: HUD_ACTION.SEEK_REL, deltaSeconds: 15 })),
+      mkBtn('M13 6v12l8.5-6L13 6zm-1 6L3.5 6v12L12 12z', 'Next paragraph', () => onAction({ action: HUD_ACTION.NEXT })),
+      mkBtn('M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7l-1.4-1.4L9.2 12 2.9 5.7l1.4-1.4 6.3 6.3 6.3-6.3z', 'Stop', () => onAction({ action: HUD_ACTION.STOP })),
     );
 
     progressEl = document.createElement('div');
@@ -84,7 +91,11 @@ export function createHudController({ onAction = () => {} } = {}) {
   }
 
   function clearHighlight() {
-    if (activeNode) activeNode.removeAttribute(HIGHLIGHT_ATTR);
+    if (activeNode) {
+      activeNode.removeAttribute(HIGHLIGHT_ATTR);
+      activeNode.style.outline = '';
+      activeNode.style.outlineOffset = '';
+    }
     activeNode = null;
   }
 
@@ -100,20 +111,12 @@ export function createHudController({ onAction = () => {} } = {}) {
     }
   }
 
-  function clearInlineOutline() {
-    if (activeNode) {
-      activeNode.style.outline = '';
-      activeNode.style.outlineOffset = '';
-    }
-  }
-
   function onSessionUpdate(update, snippet = '') {
     ensureMounted();
     if (!update) return;
     const status = update.status;
     if (status === SESSION_STATUS.STOPPED || status === SESSION_STATUS.IDLE) {
       clearHighlight();
-      clearInlineOutline();
       setVisible(false);
       return;
     }
@@ -125,8 +128,12 @@ export function createHudController({ onAction = () => {} } = {}) {
     const bar = progressEl.querySelector('[data-tts-progress-bar="true"]');
     if (bar) bar.style.width = `${progress}%`;
 
-    playPauseButton.firstChild.textContent = status === SESSION_STATUS.PAUSED ? '▶' : '⏸';
-    playPauseButton.onclick = () => onAction({ action: status === SESSION_STATUS.PAUSED ? HUD_ACTION.RESUME : HUD_ACTION.PAUSE });
+    const iconPath = status === SESSION_STATUS.PAUSED
+      ? 'M8 5v14l11-7z'
+      : 'M6 4h4v16H6V4zm8 0h4v16h-4V4z';
+    playPauseAction = status === SESSION_STATUS.PAUSED ? HUD_ACTION.RESUME : HUD_ACTION.PAUSE;
+    playPauseButton.innerHTML = '';
+    playPauseButton.append(createIcon(iconPath));
 
     snippetEl.textContent = snippet;
   }
@@ -144,7 +151,6 @@ export function createHudController({ onAction = () => {} } = {}) {
     setActiveNode,
     hide: () => setVisible(false),
     clearHighlight: () => {
-      clearInlineOutline();
       clearHighlight();
     },
   };
