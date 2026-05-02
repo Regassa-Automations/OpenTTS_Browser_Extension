@@ -412,7 +412,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case MESSAGE_TYPES.OFFSCREEN_AUDIO_ENDED:
       case MESSAGE_TYPES.OFFSCREEN_SEEK_OVERFLOW:
         if (session && message.payload?.sessionId === session.sessionId) {
-          invalidateSessionPrefetch(session.sessionId);
+          if (message.type === MESSAGE_TYPES.OFFSCREEN_SEEK_OVERFLOW) {
+            invalidateSessionPrefetch(session.sessionId);
+          }
           await playSessionIndex(session, session.activeIndex + 1);
         }
         break;
