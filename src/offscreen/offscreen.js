@@ -22,6 +22,16 @@ function emitState(state, extra = {}) {
   });
 }
 
+function emitAudioTime() {
+  if (!activeSessionId) return;
+  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
+    sessionId: activeSessionId,
+    index: activeIndex,
+    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
+  });
+}
+
 function resetAudio() {
   audio.pause();
   audio.removeAttribute('src');
@@ -65,6 +75,7 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 
     }
     const parsedStart = Number(startSeconds);
     audio.currentTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : 0;
+    emitAudioTime();
     emitState('loading');
     await audio.play();
     emitState('playing');
@@ -87,13 +98,7 @@ function ensureSession(messageSessionId) {
 }
 
 audio.addEventListener('timeupdate', () => {
-  if (!activeSessionId) return;
-  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
-    sessionId: activeSessionId,
-    index: activeIndex,
-    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
-    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
-  });
+  emitAudioTime();
 });
 
 audio.addEventListener('ended', () => {
