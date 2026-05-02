@@ -70,6 +70,16 @@ function emitState(state, extra = {}) {
   });
 }
 
+function emitAudioTime() {
+  if (!activeSessionId) return;
+  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
+    sessionId: activeSessionId,
+    index: activeIndex,
+    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
+  });
+}
+
 function resetAudio() {
   audio.pause();
   audio.removeAttribute('src');
@@ -94,7 +104,7 @@ function toPlaybackErrorCode(error) {
   }
 }
 
-async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
+async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 0 }) {
   if (!sessionId || typeof audioDataUrl !== 'string' || audioDataUrl.length === 0) {
     throw new Error('OFFSCREEN_PLAY requires sessionId and audioDataUrl.');
   }
@@ -112,8 +122,9 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
       audio.src = audioDataUrl;
       lastSrc = audioDataUrl;
     }
-    audio.currentTime = 0;
-    resetTimeEmitState();
+    const parsedStart = Number(startSeconds);
+    audio.currentTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : 0;
+    emitAudioTime();
     emitState('loading');
     emitAudioTime({ force: true });
     await audio.play();

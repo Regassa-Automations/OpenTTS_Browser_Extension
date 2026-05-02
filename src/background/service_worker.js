@@ -206,7 +206,12 @@ async function playSessionIndex(session, index, opts = {}) {
     const tts = await requestTts({ session: next, index });
     await sendToOffscreen({
       type: MESSAGE_TYPES.OFFSCREEN_PLAY,
-      payload: { sessionId: next.sessionId, audioDataUrl: tts.audioDataUrl, index },
+      payload: {
+        sessionId: next.sessionId,
+        audioDataUrl: tts.audioDataUrl,
+        index,
+        startSeconds: Number.isFinite(opts.startSeconds) ? Math.max(0, opts.startSeconds) : 0,
+      },
     });
 
     next = await broadcastSessionUpdate(next, { status: SESSION_STATUS.PLAYING, duration: 0, currentTime: 0 });
@@ -232,8 +237,19 @@ async function playSessionIndex(session, index, opts = {}) {
   }
 }
 
-function handleAudioTime(session, { currentTime, duration }) {
-  return broadcastSessionUpdate(session, { currentTime: currentTime ?? 0, duration: duration ?? 0 });
+function handleAudioTime(session, { index, currentTime, duration }) {
+  const parsedDuration = Number(duration);
+  const normalizedDuration = Number.isFinite(parsedDuration) ? parsedDuration : 0;
+  const durationByIndex = { ...(session.durationByIndex || {}) };
+  if (Number.isInteger(index) && index >= 0) {
+    durationByIndex[index] = normalizedDuration;
+  }
+
+  return broadcastSessionUpdate(session, {
+    currentTime: currentTime ?? 0,
+    duration: normalizedDuration,
+    durationByIndex,
+  });
 }
 
 
@@ -379,7 +395,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       case MESSAGE_TYPES.OFFSCREEN_SEEK_UNDERFLOW:
         if (session && message.payload?.sessionId === session.sessionId) {
-          await playSessionIndex(session, session.activeIndex - 1);
+          if (session.activeIndex > 0) {
+            const previousDuration = Number(session.durationByIndex?.[session.activeIndex - 1]) || 0;
+            await playSessionIndex(session, session.activeIndex - 1, {
+              startSeconds: Math.max(previousDuration - 15, 0),
+            });
+          } else {
+            await playSessionIndex(session, session.activeIndex, { startSeconds: 0 });
+          }
         }
         break;
       case MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR:
