@@ -22,9 +22,11 @@ async function sendToOffscreen(message) {
 }
 
 async function broadcastSessionUpdate(session, patch = {}) {
-  const next = { ...session, ...patch };
-  sessionsByTab.set(session.tabId, next);
-  await chrome.tabs.sendMessage(session.tabId, {
+  const current = sessionsByTab.get(session.tabId);
+  const base = current && current.sessionId === session.sessionId ? current : session;
+  const next = { ...base, ...patch };
+  sessionsByTab.set(next.tabId, next);
+  await chrome.tabs.sendMessage(next.tabId, {
     type: MESSAGE_TYPES.BG_SESSION_UPDATE,
     payload: {
       sessionId: next.sessionId,
