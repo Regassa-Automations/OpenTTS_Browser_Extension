@@ -6,6 +6,7 @@ audio.preload = 'auto';
 let activeSessionId = null;
 let activeIndex = null;
 let lastSrc = '';
+let playRequestId = 0;
 
 function send(type, payload = {}) {
   return chrome.runtime.sendMessage({ type, payload }).catch(() => undefined);
@@ -55,6 +56,7 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
 
   activeSessionId = sessionId;
   activeIndex = Number.isInteger(index) ? index : null;
+  const requestId = ++playRequestId;
 
   try {
     if (lastSrc !== audioDataUrl) {
@@ -66,6 +68,9 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
     await audio.play();
     emitState('playing');
   } catch (error) {
+    if (requestId !== playRequestId) {
+      return;
+    }
     emitState('error');
     await send(MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR, {
       sessionId,
