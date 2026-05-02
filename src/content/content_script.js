@@ -22,8 +22,17 @@ function sendMessage(type, payload) {
 }
 
 async function bootstrap() {
+  const rawSettingsResult = await chrome.storage.local.get('settings').catch(() => ({}));
+  const rawSettings = (rawSettingsResult && typeof rawSettingsResult.settings === 'object')
+    ? rawSettingsResult.settings
+    : {};
+
   const settings = await getSettings().catch(() => ({}));
-  autoScrollEnabled = Boolean(settings?.autoScroll);
+  autoScrollEnabled = Object.prototype.hasOwnProperty.call(rawSettings, 'autoScrollEnabled')
+    ? Boolean(rawSettings.autoScrollEnabled)
+    : (Object.prototype.hasOwnProperty.call(rawSettings, 'autoScroll')
+      ? Boolean(rawSettings.autoScroll)
+      : Boolean(settings?.autoScrollEnabled));
 
   const hud = createHudController({
     onAction: ({ action, deltaSeconds }) => {
