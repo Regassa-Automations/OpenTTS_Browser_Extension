@@ -28,9 +28,29 @@ function resetAudio() {
   lastSrc = '';
 }
 
+function toPlaybackErrorCode(error) {
+  const code = error?.code;
+  switch (code) {
+    case MediaError.MEDIA_ERR_ABORTED:
+      return ERROR_CODE.NETWORK_ERROR;
+    case MediaError.MEDIA_ERR_NETWORK:
+      return ERROR_CODE.NETWORK_ERROR;
+    case MediaError.MEDIA_ERR_DECODE:
+      return ERROR_CODE.PARSE_ERROR;
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+      return ERROR_CODE.BAD_REQUEST;
+    default:
+      return ERROR_CODE.UPSTREAM_ERROR;
+  }
+}
+
 async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
   if (!sessionId || typeof audioDataUrl !== 'string' || audioDataUrl.length === 0) {
     throw new Error('OFFSCREEN_PLAY requires sessionId and audioDataUrl.');
+  }
+
+  if (activeSessionId && activeSessionId !== sessionId) {
+    resetAudio();
   }
 
   activeSessionId = sessionId;
@@ -42,6 +62,7 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
       lastSrc = audioDataUrl;
     }
     audio.currentTime = 0;
+    emitState('loading');
     await audio.play();
     emitState('playing');
   } catch (error) {
@@ -85,7 +106,7 @@ audio.addEventListener('error', () => {
   void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR, {
     sessionId: activeSessionId,
     index: activeIndex,
-    errorCode: ERROR_CODE.PARSE_ERROR,
+    errorCode: toPlaybackErrorCode(mediaError),
     message: mediaError ? `Audio error code ${mediaError.code}` : 'Unknown audio playback error.',
   });
 });
@@ -113,7 +134,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         break;
       case MESSAGE_TYPES.OFFSCREEN_SEEK_REL:
         if (ensureSession(payload.sessionId)) {
-          const delta = Number(payload.deltaSeconds) || 0;
+          const parsedDelta = Number(payload.deltaSeconds);
+          const delta = Number.isFinite(parsedDelta) ? parsedDelta : 0;
           const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
           const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
           const nextTime = current + delta;
@@ -138,8 +160,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         break;
       case MESSAGE_TYPES.OFFSCREEN_STOP:
         if (ensureSession(payload.sessionId)) {
-          resetAudio();
           emitState('stopped');
+          resetAudio();
           activeSessionId = null;
           activeIndex = null;
         }
