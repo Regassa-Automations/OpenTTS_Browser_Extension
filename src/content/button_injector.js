@@ -83,8 +83,8 @@ export function createButtonInjector({
     if (existing) return;
 
     const button = makeButton(node.dataset.ttsId, node);
-    // Append control to reduce disruption to the start of readable text.
-    node.append(button);
+    // Place control first for quick discovery and Speechify-style UX.
+    node.prepend(button);
   }
 
   function injectNow() {

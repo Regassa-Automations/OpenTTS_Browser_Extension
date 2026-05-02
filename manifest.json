@@ -25,11 +25,21 @@
         "<all_urls>"
       ],
       "js": [
-        "src/content/content_script.js"
+        "src/content/loader.js"
       ],
-      "run_at": "document_idle",
-      "type": "module"
+      "run_at": "document_idle"
     }
   ],
-  "options_page": "src/options/options.html"
+  "options_page": "src/options/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content/*.js",
+        "src/shared/*.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }
