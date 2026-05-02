@@ -237,8 +237,19 @@ async function playSessionIndex(session, index, opts = {}) {
   }
 }
 
-function handleAudioTime(session, { currentTime, duration }) {
-  return broadcastSessionUpdate(session, { currentTime: currentTime ?? 0, duration: duration ?? 0 });
+function handleAudioTime(session, { index, currentTime, duration }) {
+  const parsedDuration = Number(duration);
+  const normalizedDuration = Number.isFinite(parsedDuration) ? parsedDuration : 0;
+  const durationByIndex = { ...(session.durationByIndex || {}) };
+  if (Number.isInteger(index) && index >= 0) {
+    durationByIndex[index] = normalizedDuration;
+  }
+
+  return broadcastSessionUpdate(session, {
+    currentTime: currentTime ?? 0,
+    duration: normalizedDuration,
+    durationByIndex,
+  });
 }
 
 
@@ -385,7 +396,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case MESSAGE_TYPES.OFFSCREEN_SEEK_UNDERFLOW:
         if (session && message.payload?.sessionId === session.sessionId) {
           if (session.activeIndex > 0) {
-            const previousDuration = Number(session.duration) || 0;
+            const previousDuration = Number(session.durationByIndex?.[session.activeIndex - 1]) || 0;
             await playSessionIndex(session, session.activeIndex - 1, {
               startSeconds: Math.max(previousDuration - 15, 0),
             });
