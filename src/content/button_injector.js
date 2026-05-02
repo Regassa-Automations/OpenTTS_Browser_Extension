@@ -57,7 +57,14 @@ export function createButtonInjector({
     const innerButton = document.createElement('button');
     innerButton.type = 'button';
     innerButton.setAttribute('part', 'trigger');
-    innerButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M8 5v14l11-7z');
+    svg.append(path);
+    innerButton.append(svg);
     innerButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
