@@ -1,2 +1,99 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>OpenTTS Options</title></head><body></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenTTS Options</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>OpenTTS Settings</h1>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <form id="settings-form" novalidate>
+        <fieldset>
+          <legend>Provider</legend>
+
+          <label for="apiKey">API key</label>
+          <input id="apiKey" name="apiKey" type="password" autocomplete="off" />
+
+          <label for="model">Model</label>
+          <input id="model" name="model" type="text" required />
+
+          <label for="voice">Voice</label>
+          <input id="voice" name="voice" type="text" required />
+        </fieldset>
+
+        <fieldset>
+          <legend>Budget and limits</legend>
+
+          <label for="monthlyBudgetUsd">Monthly budget (USD)</label>
+          <input id="monthlyBudgetUsd" name="monthlyBudgetUsd" type="number" min="0" step="0.01" required />
+
+          <label for="warn1">Warning thresholds (ratio 0–1)</label>
+          <div class="inline-3" aria-label="Warning thresholds">
+            <input id="warn1" name="warn1" type="number" min="0" max="1" step="0.01" required />
+            <label class="sr-only" for="warn2">Warning threshold 2</label>
+            <input id="warn2" name="warn2" type="number" min="0" max="1" step="0.01" required />
+            <label class="sr-only" for="warn3">Warning threshold 3</label>
+            <input id="warn3" name="warn3" type="number" min="0" max="1" step="0.01" required />
+          </div>
+
+          <label for="hardStopAtLimit" class="checkbox-row">
+            <input id="hardStopAtLimit" name="hardStopAtLimit" type="checkbox" />
+            Hard stop at budget limit
+          </label>
+
+          <label for="minReadableChars">Minimum readable chars</label>
+          <input id="minReadableChars" name="minReadableChars" type="number" min="1" step="1" required />
+        </fieldset>
+
+        <fieldset>
+          <legend>Playback and prefetch</legend>
+
+          <label for="autoScrollEnabled" class="checkbox-row">
+            <input id="autoScrollEnabled" name="autoScrollEnabled" type="checkbox" />
+            Auto-scroll while reading
+          </label>
+
+          <label for="prefetchMinDelayMs">Prefetch min delay (ms)</label>
+          <input id="prefetchMinDelayMs" name="prefetchMinDelayMs" type="number" min="0" step="100" required />
+
+          <label for="prefetchProgressThreshold">Prefetch progress threshold (0–1)</label>
+          <input id="prefetchProgressThreshold" name="prefetchProgressThreshold" type="number" min="0" max="1" step="0.01" required />
+
+          <label for="prefetchMinListenMs">Prefetch min listen time (ms)</label>
+          <input id="prefetchMinListenMs" name="prefetchMinListenMs" type="number" min="0" step="100" required />
+        </fieldset>
+
+        <p id="form-error" class="error" role="alert" aria-live="assertive"></p>
+
+        <div class="actions">
+          <button id="save" type="submit">Save</button>
+          <button id="reload" type="button">Reload</button>
+        </div>
+      </form>
+
+      <section class="usage" aria-labelledby="usage-title">
+        <h2 id="usage-title">Usage</h2>
+        <p>Month: <strong id="usage-month"></strong></p>
+        <p>Characters: <strong id="usage-characters"></strong></p>
+        <p>Estimated spend: <strong id="usage-usd"></strong></p>
+        <button id="reset-usage" type="button">Reset current month usage</button>
+      </section>
+
+      <section class="privacy" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Privacy disclosure</h2>
+        <p>
+          OpenTTS sends selected page text to OpenRouter only when you explicitly start playback.
+          Your API key and usage counters are stored locally in browser extension storage.
+          No additional analytics telemetry is sent from this options page.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="./options.js"></script>
+  </body>
+</html>
