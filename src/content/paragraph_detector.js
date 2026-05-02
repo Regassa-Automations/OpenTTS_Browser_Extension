@@ -33,17 +33,16 @@ function dedupeLeafMost(nodes) {
   const accepted = [];
 
   for (const node of nodes) {
-    if (accepted.some((existing) => existing.contains(node))) {
-      continue;
-    }
-
     for (let i = accepted.length - 1; i >= 0; i -= 1) {
-      if (node.contains(accepted[i])) {
+      const existing = accepted[i];
+      if (existing.contains(node) || node.contains(existing)) {
         accepted.splice(i, 1);
       }
     }
 
-    accepted.push(node);
+    if (!accepted.includes(node)) {
+      accepted.push(node);
+    }
   }
 
   return accepted;

@@ -113,6 +113,8 @@ export function createButtonInjector({
   }
 
   function start() {
+    if (observer) return;
+
     injectNow();
     observer = new MutationObserver((mutations) => {
       if (!shouldProcessMutations(mutations)) return;
