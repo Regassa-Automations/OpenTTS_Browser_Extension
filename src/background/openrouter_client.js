@@ -209,7 +209,11 @@ export async function fetchTtsAudio({ apiKey, text, voice, model, format = 'mp3'
       throw error;
     }
 
-    if (error instanceof TypeError || (error instanceof DOMException && error.name === 'AbortError')) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+
+    if (error instanceof TypeError) {
       throw toError(ERROR_CODE.NETWORK_ERROR, 'Network error while contacting OpenRouter.', {
         message: error.message,
       });
