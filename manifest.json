@@ -21,10 +21,31 @@
   ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content/content_script.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/loader.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "options_page": "src/options/options.html"
+  "options_page": "src/options/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content/content_script.js",
+        "src/content/button_injector.js",
+        "src/content/hud.js",
+        "src/content/auto_scroll.js",
+        "src/content/paragraph_detector.js",
+        "src/shared/message_types.js",
+        "src/shared/storage.js",
+        "src/shared/storage_keys.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }
