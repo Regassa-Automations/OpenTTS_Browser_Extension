@@ -17,7 +17,23 @@ function buildCacheKey({ sessionId, paragraphId, model, voice }) {
 }
 
 
+let _offscreenCreating = null;
+
+async function ensureOffscreenDocument() {
+  const existing = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+  if (existing.length > 0) return;
+  if (!_offscreenCreating) {
+    _offscreenCreating = chrome.offscreen.createDocument({
+      url: chrome.runtime.getURL('src/offscreen/offscreen.html'),
+      reasons: ['AUDIO_PLAYBACK'],
+      justification: 'Audio playback for TTS',
+    }).finally(() => { _offscreenCreating = null; });
+  }
+  await _offscreenCreating;
+}
+
 async function sendToOffscreen(message) {
+  await ensureOffscreenDocument();
   return chrome.runtime.sendMessage(message).catch(() => undefined);
 }
 
@@ -287,14 +303,6 @@ function handleAudioTime(session, { index, currentTime, duration }) {
 }
 
 
-function sendSafeResponse(sendResponse, payload) {
-  try {
-    sendResponse(payload);
-  } catch (_error) {
-    // Ignore response channel closure in fire-and-forget callers.
-  }
-}
-
 function isKnownErrorCode(code) {
   return typeof code === 'string' && Object.values(ERROR_CODE).includes(code);
 }
@@ -375,8 +383,8 @@ async function startSessionFromContent(payload, senderTabId) {
   await playSessionIndex(session, session.activeIndex);
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type) return false;
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (!message || !message.type) return;
 
   (async () => {
     const tabId = sender?.tab?.id;
@@ -470,11 +478,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       default:
         break;
     }
-
-    sendSafeResponse(sendResponse, { ok: true });
-  })().catch((error) => {
-    sendSafeResponse(sendResponse, { ok: false, message: error instanceof Error ? error.message : String(error) });
-  });
-
-  return true;
+  })().catch(() => undefined);
 });

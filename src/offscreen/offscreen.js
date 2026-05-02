@@ -70,16 +70,6 @@ function emitState(state, extra = {}) {
   });
 }
 
-function emitAudioTime() {
-  if (!activeSessionId) return;
-  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
-    sessionId: activeSessionId,
-    index: activeIndex,
-    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
-    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
-  });
-}
-
 function resetAudio() {
   audio.pause();
   audio.removeAttribute('src');
