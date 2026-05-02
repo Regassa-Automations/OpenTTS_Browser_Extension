@@ -8,6 +8,54 @@ let activeIndex = null;
 let lastSrc = '';
 let playRequestId = 0;
 
+
+const AUDIO_TIME_EMIT_INTERVAL_MS = 250;
+const AUDIO_TIME_PROGRESS_DELTA_SECONDS = 0.05;
+
+let lastTimeEmitAtMs = 0;
+let lastEmittedCurrentTime = null;
+let lastEmittedDuration = null;
+
+function getAudioProgress() {
+  return {
+    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
+  };
+}
+
+function resetTimeEmitState() {
+  lastTimeEmitAtMs = 0;
+  lastEmittedCurrentTime = null;
+  lastEmittedDuration = null;
+}
+
+function emitAudioTime({ force = false } = {}) {
+  if (!activeSessionId) return;
+
+  const now = Date.now();
+  const { currentTime, duration } = getAudioProgress();
+  const intervalElapsed = now - lastTimeEmitAtMs >= AUDIO_TIME_EMIT_INTERVAL_MS;
+  const currentDelta =
+    lastEmittedCurrentTime === null ? Number.POSITIVE_INFINITY : Math.abs(currentTime - lastEmittedCurrentTime);
+  const durationChanged = lastEmittedDuration === null ? true : duration !== lastEmittedDuration;
+  const progressChanged = currentDelta >= AUDIO_TIME_PROGRESS_DELTA_SECONDS;
+
+  if (!force && !intervalElapsed && !progressChanged && !durationChanged) {
+    return;
+  }
+
+  lastTimeEmitAtMs = now;
+  lastEmittedCurrentTime = currentTime;
+  lastEmittedDuration = duration;
+
+  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
+    sessionId: activeSessionId,
+    index: activeIndex,
+    currentTime,
+    duration,
+  });
+}
+
 function send(type, payload = {}) {
   return chrome.runtime.sendMessage({ type, payload }).catch(() => undefined);
 }
@@ -22,11 +70,22 @@ function emitState(state, extra = {}) {
   });
 }
 
+function emitAudioTime() {
+  if (!activeSessionId) return;
+  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
+    sessionId: activeSessionId,
+    index: activeIndex,
+    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
+  });
+}
+
 function resetAudio() {
   audio.pause();
   audio.removeAttribute('src');
   audio.load();
   lastSrc = '';
+  resetTimeEmitState();
 }
 
 function toPlaybackErrorCode(error) {
@@ -45,7 +104,7 @@ function toPlaybackErrorCode(error) {
   }
 }
 
-async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
+async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 0 }) {
   if (!sessionId || typeof audioDataUrl !== 'string' || audioDataUrl.length === 0) {
     throw new Error('OFFSCREEN_PLAY requires sessionId and audioDataUrl.');
   }
@@ -63,10 +122,14 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index }) {
       audio.src = audioDataUrl;
       lastSrc = audioDataUrl;
     }
-    audio.currentTime = 0;
+    const parsedStart = Number(startSeconds);
+    audio.currentTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : 0;
+    emitAudioTime();
     emitState('loading');
+    emitAudioTime({ force: true });
     await audio.play();
     emitState('playing');
+    emitAudioTime({ force: true });
   } catch (error) {
     if (requestId !== playRequestId) {
       return;
@@ -86,17 +149,12 @@ function ensureSession(messageSessionId) {
 }
 
 audio.addEventListener('timeupdate', () => {
-  if (!activeSessionId) return;
-  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
-    sessionId: activeSessionId,
-    index: activeIndex,
-    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
-    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
-  });
+  emitAudioTime();
 });
 
 audio.addEventListener('ended', () => {
   if (!activeSessionId) return;
+  emitAudioTime({ force: true });
   emitState('ended');
   void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_ENDED, {
     sessionId: activeSessionId,
@@ -129,12 +187,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (ensureSession(payload.sessionId)) {
           audio.pause();
           emitState('paused');
+          emitAudioTime({ force: true });
         }
         break;
       case MESSAGE_TYPES.OFFSCREEN_RESUME:
         if (ensureSession(payload.sessionId)) {
           await audio.play();
           emitState('playing');
+          emitAudioTime({ force: true });
         }
         break;
       case MESSAGE_TYPES.OFFSCREEN_SEEK_REL:
@@ -160,6 +220,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           } else {
             audio.currentTime = nextTime;
             emitState('seeking', { currentTime: audio.currentTime, duration });
+            emitAudioTime({ force: true });
           }
         }
         break;
