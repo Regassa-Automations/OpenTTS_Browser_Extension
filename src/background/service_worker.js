@@ -421,7 +421,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case MESSAGE_TYPES.OFFSCREEN_SEEK_UNDERFLOW:
         if (session && message.payload?.sessionId === session.sessionId) {
           invalidateSessionPrefetch(session.sessionId);
-          await playSessionIndex(session, session.activeIndex - 1);
+          if (session.activeIndex > 0) {
+            const previousDuration = Number(session.durationByIndex?.[session.activeIndex - 1]) || 0;
+            await playSessionIndex(session, session.activeIndex - 1, {
+              startSeconds: Math.max(previousDuration - 15, 0),
+            });
+          } else {
+            await playSessionIndex(session, session.activeIndex, { startSeconds: 0 });
+          }
         }
         break;
       case MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR:
