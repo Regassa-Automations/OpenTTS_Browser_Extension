@@ -28,8 +28,7 @@ export function createButtonInjector({
   }
 
   function makeButton(ttsId, node) {
-    const button = document.createElement('button');
-    button.type = 'button';
+    const button = document.createElement('span');
     button.setAttribute(BUTTON_ATTR, 'play');
     button.setAttribute('aria-label', 'Play text to speech for this paragraph');
     button.title = 'Play paragraph';
@@ -57,6 +56,8 @@ export function createButtonInjector({
     const innerButton = document.createElement('button');
     innerButton.type = 'button';
     innerButton.setAttribute('part', 'trigger');
+    innerButton.setAttribute('aria-label', 'Play text to speech for this paragraph');
+    innerButton.title = 'Play paragraph';
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
