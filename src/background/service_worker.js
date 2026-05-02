@@ -45,7 +45,31 @@ async function broadcastSessionUpdate(session, patch = {}) {
 }
 
 function invalidateSessionPrefetch(sessionId) {
+  const state = prefetchStateBySession.get(sessionId);
+  if (state) {
+    prefetchStateBySession.set(sessionId, { ...state, token: state.token + 1 });
+    return;
+  }
   prefetchStateBySession.delete(sessionId);
+}
+
+function ensurePrefetchState(session) {
+  const existing = prefetchStateBySession.get(session.sessionId);
+  return {
+    startedAtMs: Date.now(),
+    playingSinceMs: Date.now(),
+    minListenMs: session.prefetchMinListenMs,
+    minDelayMs: session.prefetchMinDelayMs,
+    progressThreshold: session.prefetchProgressThreshold,
+    didPrefetch: false,
+    didPrefetchDepth2: false,
+    token: (existing?.token ?? 0) + 1,
+  };
+}
+
+function isSessionActive(session) {
+  const current = sessionsByTab.get(session.tabId);
+  return Boolean(current && current.sessionId === session.sessionId && activeSessionRef.sessionId === session.sessionId);
 }
 
 async function stopSession(tabId, reason) {
@@ -66,6 +90,7 @@ async function stopSession(tabId, reason) {
 
 
 function evaluatePrefetchGate(session, progressMeta = {}) {
+  if (!isSessionActive(session)) return false;
   const state = prefetchStateBySession.get(session.sessionId);
   if (!state || state.didPrefetch) return false;
 
@@ -82,6 +107,7 @@ function evaluatePrefetchGate(session, progressMeta = {}) {
 }
 
 function shouldPrefetchDepthTwo(session, progressMeta = {}) {
+  if (!isSessionActive(session)) return false;
   const state = prefetchStateBySession.get(session.sessionId);
   if (!state || state.didPrefetchDepth2) return false;
 
@@ -149,7 +175,7 @@ async function maybeEnforceHardStop(session, settings, usage) {
   return true;
 }
 
-async function requestTts({ session, index }) {
+async function requestTts({ session, index, prefetchToken = null }) {
   const paragraphId = session.paragraphIds[index];
   const text = session.textById[paragraphId];
   const key = buildCacheKey({ sessionId: session.sessionId, paragraphId, model: session.model, voice: session.voice });
@@ -171,6 +197,14 @@ async function requestTts({ session, index }) {
       model: session.model,
       format: 'mp3',
     });
+
+    if (prefetchToken != null) {
+      const prefetchState = prefetchStateBySession.get(session.sessionId);
+      if (!prefetchState || prefetchState.token !== prefetchToken || !isSessionActive(session)) {
+        return result;
+      }
+    }
+
     cacheByKey.set(key, result);
     const usage = await incrementUsage({ charCount: result.charCount, estimatedUsd: result.estimatedUsd });
     await maybeEmitBudgetWarning(session, usage, settings);
@@ -216,15 +250,7 @@ async function playSessionIndex(session, index, opts = {}) {
 
     next = await broadcastSessionUpdate(next, { status: SESSION_STATUS.PLAYING, duration: 0, currentTime: 0 });
     if (!opts.isPrefetch) {
-      prefetchStateBySession.set(next.sessionId, {
-        startedAtMs: Date.now(),
-        playingSinceMs: Date.now(),
-        minListenMs: next.prefetchMinListenMs,
-        minDelayMs: next.prefetchMinDelayMs,
-        progressThreshold: next.prefetchProgressThreshold,
-        didPrefetch: false,
-        didPrefetchDepth2: false,
-      });
+      prefetchStateBySession.set(next.sessionId, ensurePrefetchState(next));
     }
   } catch (error) {
     const code = error?.code && ERROR_CODE[error.code] ? error.code : ERROR_CODE.UPSTREAM_ERROR;
@@ -310,6 +336,12 @@ async function startSessionFromContent(payload, senderTabId) {
     return;
   }
 
+  const priorSession = sessionsByTab.get(senderTabId);
+  if (priorSession) {
+    await sendToOffscreen({ type: MESSAGE_TYPES.OFFSCREEN_STOP, payload: { sessionId: priorSession.sessionId } });
+    invalidateSessionPrefetch(priorSession.sessionId);
+  }
+
   const session = {
     sessionId: createSessionId(senderTabId),
     tabId: senderTabId,
@@ -353,6 +385,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!session) break;
         switch (message.payload?.action) {
           case HUD_ACTION.PAUSE:
+            invalidateSessionPrefetch(session.sessionId);
             await sendToOffscreen({ type: MESSAGE_TYPES.OFFSCREEN_PAUSE, payload: { sessionId: session.sessionId } });
             await broadcastSessionUpdate(session, { status: SESSION_STATUS.PAUSED });
             break;
@@ -361,14 +394,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await broadcastSessionUpdate(session, { status: SESSION_STATUS.PLAYING });
             break;
           case HUD_ACTION.NEXT:
+            invalidateSessionPrefetch(session.sessionId);
             await playSessionIndex(session, session.activeIndex + 1);
             break;
           case HUD_ACTION.PREV:
+            invalidateSessionPrefetch(session.sessionId);
             await playSessionIndex(session, session.activeIndex - 1);
             break;
-          case HUD_ACTION.SEEK_REL:
-            await sendToOffscreen({ type: MESSAGE_TYPES.OFFSCREEN_SEEK_REL, payload: { sessionId: session.sessionId, deltaSeconds: Number(message.payload?.deltaSeconds) || 0 } });
+          case HUD_ACTION.SEEK_REL: {
+            const deltaSeconds = Number(message.payload?.deltaSeconds) || 0;
+            await sendToOffscreen({ type: MESSAGE_TYPES.OFFSCREEN_SEEK_REL, payload: { sessionId: session.sessionId, deltaSeconds } });
             break;
+          }
           case HUD_ACTION.STOP:
             await stopSession(tabId, SESSION_REASON.USER_STOPPED);
             break;
@@ -379,22 +416,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME:
         if (session && message.payload?.sessionId === session.sessionId) {
           await handleAudioTime(session, message.payload);
+          const prefetchState = prefetchStateBySession.get(session.sessionId);
           if (evaluatePrefetchGate(session, message.payload)) {
-            void requestTts({ session, index: session.activeIndex + 1 }).catch(() => undefined);
+            void requestTts({ session, index: session.activeIndex + 1, prefetchToken: prefetchState?.token ?? null }).catch(() => undefined);
           }
           if (shouldPrefetchDepthTwo(session, message.payload)) {
-            void requestTts({ session, index: session.activeIndex + 2 }).catch(() => undefined);
+            void requestTts({ session, index: session.activeIndex + 2, prefetchToken: prefetchState?.token ?? null }).catch(() => undefined);
           }
         }
         break;
       case MESSAGE_TYPES.OFFSCREEN_AUDIO_ENDED:
       case MESSAGE_TYPES.OFFSCREEN_SEEK_OVERFLOW:
         if (session && message.payload?.sessionId === session.sessionId) {
+          if (message.type === MESSAGE_TYPES.OFFSCREEN_SEEK_OVERFLOW) {
+            invalidateSessionPrefetch(session.sessionId);
+          }
           await playSessionIndex(session, session.activeIndex + 1);
         }
         break;
       case MESSAGE_TYPES.OFFSCREEN_SEEK_UNDERFLOW:
         if (session && message.payload?.sessionId === session.sessionId) {
+          invalidateSessionPrefetch(session.sessionId);
           if (session.activeIndex > 0) {
             const previousDuration = Number(session.durationByIndex?.[session.activeIndex - 1]) || 0;
             await playSessionIndex(session, session.activeIndex - 1, {
