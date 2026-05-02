@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light dark;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+fieldset {
+  border: 1px solid #8884;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+label {
+  display: block;
+  margin-top: 8px;
+}
+
+input[type='text'],
+input[type='password'],
+input[type='number'] {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 4px;
+}
+
+.inline-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(90px, 120px));
+  gap: 8px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.status {
+  min-height: 1.2em;
+}
+
+.error {
+  color: #b00020;
+  min-height: 1.2em;
+}
