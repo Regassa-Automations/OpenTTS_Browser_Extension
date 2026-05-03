@@ -8,6 +8,23 @@ const prefetchStateBySession = new Map();
 const cacheByKey = new Map();
 const inFlightByKey = new Map();
 
+/**
+ * Singleton-pattern helper to ensure the offscreen document exists in MV3.
+ */
+async function ensureOffscreenDocument() {
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT']
+  });
+
+  if (existingContexts.length > 0) return;
+
+  await chrome.offscreen.createDocument({
+    url: 'src/offscreen/offscreen.html',
+    reasons: ['AUDIO_PLAYBACK'],
+    justification: 'Playback for text-to-speech audio.'
+  });
+}
+
 function createSessionId(tabId) {
   return `sess_${tabId}_${Date.now()}`;
 }
@@ -16,9 +33,13 @@ function buildCacheKey({ sessionId, paragraphId, model, voice }) {
   return `${sessionId}:${paragraphId}:${voice}:${model}`;
 }
 
-
 async function sendToOffscreen(message) {
-  return chrome.runtime.sendMessage(message).catch(() => undefined);
+  try {
+    await ensureOffscreenDocument(); // Ensure document exists before messaging
+    return chrome.runtime.sendMessage(message).catch(() => undefined);
+  } catch (error) {
+    console.error('Failed to ensure offscreen document:', error);
+  }
 }
 
 async function broadcastSessionUpdate(session, patch = {}) {
@@ -87,7 +108,6 @@ async function stopSession(tabId, reason) {
   await broadcastSessionUpdate(session, { status: SESSION_STATUS.STOPPED, reason });
   sessionsByTab.delete(tabId);
 }
-
 
 function evaluatePrefetchGate(session, progressMeta = {}) {
   if (!isSessionActive(session)) return false;
@@ -286,15 +306,6 @@ function handleAudioTime(session, { index, currentTime, duration }) {
   });
 }
 
-
-function sendSafeResponse(sendResponse, payload) {
-  try {
-    sendResponse(payload);
-  } catch (_error) {
-    // Ignore response channel closure in fire-and-forget callers.
-  }
-}
-
 function isKnownErrorCode(code) {
   return typeof code === 'string' && Object.values(ERROR_CODE).includes(code);
 }
@@ -378,6 +389,7 @@ async function startSessionFromContent(payload, senderTabId) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
   
+  // FIX: Satisfy the "Channel Closed" requirement by responding immediately.
   sendResponse({ ok: true });
 
   (async () => {
@@ -472,11 +484,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       default:
         break;
     }
-
-    sendSafeResponse(sendResponse, { ok: true });
   })().catch((error) => {
-    sendSafeResponse(sendResponse, { ok: false, message: error instanceof Error ? error.message : String(error) });
+    console.error('Service Worker async error:', error);
   });
 
-  return true;
+  return false; // Since we already called sendResponse
 });

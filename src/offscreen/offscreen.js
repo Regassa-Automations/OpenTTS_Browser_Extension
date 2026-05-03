@@ -28,9 +28,6 @@ function resetTimeEmitState() {
   lastEmittedDuration = null;
 }
 
-/**
- * Throttled emitter for audio progress to prevent message flooding.
- */
 function emitAudioTime({ force = false } = {}) {
   if (!activeSessionId) return;
 
@@ -113,7 +110,9 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 
     if (lastSrc !== audioDataUrl) {
       audio.src = audioDataUrl;
       lastSrc = audioDataUrl;
+      audio.load(); // Force load for new source
     }
+    
     const parsedStart = Number(startSeconds);
     audio.currentTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : 0;
     
@@ -122,12 +121,13 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 
     
     await audio.play();
     
-    emitState('playing');
-    emitAudioTime({ force: true });
-  } catch (error) {
-    if (requestId !== playRequestId) {
-      return;
+    if (requestId === playRequestId) {
+      emitState('playing');
+      emitAudioTime({ force: true });
     }
+  } catch (error) {
+    if (requestId !== playRequestId) return;
+    
     emitState('error');
     await send(MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR, {
       sessionId,
@@ -170,6 +170,9 @@ audio.addEventListener('error', () => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message?.type) return false;
+  
+  // FIX: Immediately acknowledge to avoid "Channel Closed" error in background script.
+  sendResponse({ ok: true });
 
   (async () => {
     const payload = message.payload ?? {};
@@ -229,17 +232,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       default:
         break;
     }
-
-    sendResponse({ ok: true });
   })().catch((error) => {
-    void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR, {
-      sessionId: activeSessionId,
-      index: activeIndex,
-      errorCode: ERROR_CODE.UPSTREAM_ERROR,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) });
+    console.error('Offscreen async error:', error);
   });
 
-  return true;
+  return false;
 });
