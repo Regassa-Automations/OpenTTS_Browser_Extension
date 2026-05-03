@@ -1,6 +1,6 @@
 import { ERROR_CODE } from '../shared/message_types.js';
 
-const OPENROUTER_TTS_ENDPOINT = 'https://openrouter.ai/api/v1/tts';
+const OPENROUTER_TTS_ENDPOINT = 'https://openrouter.ai/api/v1/audio/speech';
 const DEFAULT_TTS_MODEL = 'openai/gpt-4o-mini-tts';
 const VALID_MODEL_PATTERN = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*(?::[a-z0-9._-]+)?$/i;
 

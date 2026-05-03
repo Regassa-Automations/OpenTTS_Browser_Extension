@@ -70,16 +70,6 @@ function emitState(state, extra = {}) {
   });
 }
 
-function emitAudioTime() {
-  if (!activeSessionId) return;
-  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
-    sessionId: activeSessionId,
-    index: activeIndex,
-    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
-    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
-  });
-}
-
 function resetAudio() {
   audio.pause();
   audio.removeAttribute('src');
@@ -174,8 +164,8 @@ audio.addEventListener('error', () => {
   });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message?.type) return false;
+chrome.runtime.onMessage.addListener((message) => {
+  if (!message?.type) return;
 
   (async () => {
     const payload = message.payload ?? {};
@@ -235,8 +225,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       default:
         break;
     }
-
-    sendResponse({ ok: true });
   })().catch((error) => {
     void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_ERROR, {
       sessionId: activeSessionId,
@@ -244,8 +232,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       errorCode: ERROR_CODE.UPSTREAM_ERROR,
       message: error instanceof Error ? error.message : String(error),
     });
-    sendResponse({ ok: false, message: error instanceof Error ? error.message : String(error) });
   });
-
-  return true;
 });
