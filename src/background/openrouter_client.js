@@ -1,7 +1,7 @@
 import { ERROR_CODE } from '../shared/message_types.js';
 
 const OPENROUTER_TTS_ENDPOINT = 'https://openrouter.ai/api/v1/tts';
-const DEFAULT_TTS_MODEL = 'openai/gpt-4o-mini-tts';
+const DEFAULT_TTS_MODEL = 'openai/gpt-4o-mini-tts-2025-12-15';
 const VALID_MODEL_PATTERN = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*(?::[a-z0-9._-]+)?$/i;
 
 const ALLOWED_VOICES = Object.freeze(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']);
@@ -194,6 +194,8 @@ export async function fetchTtsAudio({ apiKey, text, voice, model, format = 'mp3'
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/OpenTTS', 
+        'X-Title': 'OpenTTS Extension'
       },
       body: JSON.stringify(body),
       signal,

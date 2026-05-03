@@ -5,7 +5,7 @@ export const STORAGE_KEYS = Object.freeze({
 
 export const DEFAULT_SETTINGS = Object.freeze({
   apiKey: '',
-  model: 'openai/gpt-4o-mini-tts',
+  model: 'openai/gpt-4o-mini-tts-2025-12-15',
   voice: 'alloy',
   monthlyBudgetUsd: 4.5,
   warnThresholds: [0.8, 0.95, 1.0],

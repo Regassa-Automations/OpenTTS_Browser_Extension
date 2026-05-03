@@ -8,7 +8,6 @@ let activeIndex = null;
 let lastSrc = '';
 let playRequestId = 0;
 
-
 const AUDIO_TIME_EMIT_INTERVAL_MS = 250;
 const AUDIO_TIME_PROGRESS_DELTA_SECONDS = 0.05;
 
@@ -29,6 +28,9 @@ function resetTimeEmitState() {
   lastEmittedDuration = null;
 }
 
+/**
+ * Throttled emitter for audio progress to prevent message flooding.
+ */
 function emitAudioTime({ force = false } = {}) {
   if (!activeSessionId) return;
 
@@ -67,16 +69,6 @@ function emitState(state, extra = {}) {
     state,
     index: activeIndex,
     ...extra,
-  });
-}
-
-function emitAudioTime() {
-  if (!activeSessionId) return;
-  void send(MESSAGE_TYPES.OFFSCREEN_AUDIO_TIME, {
-    sessionId: activeSessionId,
-    index: activeIndex,
-    currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
-    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
   });
 }
 
@@ -124,10 +116,12 @@ async function playFromDataUrl({ sessionId, audioDataUrl, index, startSeconds = 
     }
     const parsedStart = Number(startSeconds);
     audio.currentTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : 0;
-    emitAudioTime();
+    
     emitState('loading');
     emitAudioTime({ force: true });
+    
     await audio.play();
+    
     emitState('playing');
     emitAudioTime({ force: true });
   } catch (error) {

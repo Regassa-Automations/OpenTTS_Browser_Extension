@@ -377,6 +377,8 @@ async function startSessionFromContent(payload, senderTabId) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
+  
+  sendResponse({ ok: true });
 
   (async () => {
     const tabId = sender?.tab?.id;
